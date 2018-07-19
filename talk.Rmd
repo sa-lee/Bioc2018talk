@@ -1,0 +1,50 @@
+---
+title: "plyranges"
+subtitle: "fluent genomic data analysis with R/Bioconductor"
+author: "Stuart Lee"
+date: "2018-07-27"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+options(htmltools.dir.version = FALSE)
+library(magrittr)
+library(plyranges)
+```
+
+## Bioconductor infrastructure is powerful...
+
+
+---
+
+## but the learning curve is steep
+
+```{r}
+pkgs_to_get_started <- c("S4Vectors", "IRanges", "GenomicRanges")
+pkg_classes <- function(.) methods::getClasses(asNamespace(.))
+
+n_classes <- pkgs_to_get_started %>% 
+  lapply(pkg_classes) %>% 
+  lengths() %>% 
+  sum()
+n_classes
+
+n_methods <- showMethods(classes = "Ranges",  printTo = FALSE) %>% 
+  grep("^Function", .) %>% 
+  length()
+
+n_methods
+```
+
+---
+class: inverse, center, middle
+
+# How far can we get with just a GRanges?
+
+
