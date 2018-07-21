@@ -14,6 +14,7 @@ output:
 
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(comment = "#>")
 library(magrittr)
 library(plyranges)
 ```
@@ -48,3 +49,113 @@ class: inverse, center, middle
 # How far can we get with just a GRanges?
 
 
+---
+
+# GRanges are tidy...
+
+```{r, fig.align='center', echo=FALSE}
+knitr::include_graphics("GRanges.png")
+```
+
+
+---
+
+# ... so we can design a grammar
+
+- functions are verbs
+- GRanges in, GRanges out
+- leverage existing Bioconductor infrastructure 
+- enable a user to develop expressive workflows
+
+---
+
+# Finding introns in a non-model organism
+
+I have a GFF file from a non-model organism 😑, how can I find
+introns by (single) genes?
+
+Workflow:
+1. Read our GFF file in as GRanges object
+2. Extract exons, and for each exon merge overlapping ranges
+3. Filter if there is only one range within an exon
+4. Extract genes, concatante them with the exons, and for each gene
+disjoin the ranges
+5. Filter by non overlaps with exons
+
+---
+
+## Reading in the GFF
+
+```{r}
+
+gff_rngs <- read_gff("PlasmoDB-38_PvivaxP01.gff")
+head(gff_rngs)
+```
+
+A mess!
+---
+
+## Retrieve exons and group exons within genes
+
+```{r}
+all_exons <- gff_rngs %>% 
+  filter(type == "exon") %>% 
+  mutate(exon_rank = sub("(.*)-([^-]+$)", "\\2", ID),
+         gene_id = gsub("exon_|-[^-]+$", "", ID),
+         exon_id = paste0(gene_id, ".", exon_rank)) %>% 
+  select(gene_id, exon_id, exon_rank) 
+head(all_exons)
+```
+
+---
+
+## Merge overlapping ranges within an exon
+
+```{r}
+sub_exons <- all_exons %>% 
+  group_by(gene_id) %>% 
+  reduce_ranges_directed() %>% 
+  group_by(gene_id) %>% 
+  filter(n() > 1) %>% 
+  ungroup() 
+
+head(sub_exons)
+```
+
+---
+
+## Subtract exonic regions from genes
+
+```{r}
+genes <- gff_rngs %>% 
+  filter(type == "gene") %>% 
+  mutate(gene_id = ID) %>% 
+  select(gene_id)
+
+introns <- genes %>% 
+  bind_ranges(sub_exons) %>% 
+  group_by(gene_id) %>% 
+  disjoin_ranges_directed() %>% 
+  filter_by_non_overlaps(all_exons)
+head(introns)
+```
+
+
+---
+
+## Summary
+
+```{r, echo = FALSE}
+knitr::include_graphics("hex.png")
+```
+
+---
+
+# Acknowledgements
+
+- *Michael Lawrence*
+- *Di Cook*
+- Matt Ritchie
+- Charity Law
+- Shian Su
+- Earo Wang

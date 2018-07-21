@@ -42,7 +42,7 @@ n_classes
 ```
 
 ```
-## [1] 143
+#&gt; [1] 143
 ```
 
 ```r
@@ -54,13 +54,220 @@ n_methods
 ```
 
 ```
-## [1] 586
+#&gt; [1] 585
 ```
 
 ---
 class: inverse, center, middle
 
 # How far can we get with just a GRanges?
+
+
+---
+
+# GRanges are tidy...
+
+&lt;img src="GRanges.png" style="display: block; margin: auto;" /&gt;
+
+
+---
+
+# ... so we can design a grammar
+
+- functions are verbs
+- GRanges in, GRanges out
+- leverage existing Bioconductor infrastructure 
+- enable a user to develop expressive workflows
+
+---
+
+# Finding introns in a non-model organism
+
+I have a GFF file from a non-model organism 😑, how can I find
+introns by (single) genes?
+
+Workflow:
+1. Read our GFF file in as GRanges object
+2. Extract exons, and for each exon merge overlapping ranges
+3. Filter if there is only one range within an exon
+4. Extract genes, concatante them with the exons, and for each gene
+disjoin the ranges
+5. Filter by non overlaps with exons
+
+---
+
+## Reading in the GFF
+
+
+```r
+gff_rngs &lt;- read_gff("PlasmoDB-38_PvivaxP01.gff")
+head(gff_rngs)
+```
+
+```
+#&gt; GRanges object with 6 ranges and 10 metadata columns:
+#&gt;          seqnames        ranges strand |   source     type     score
+#&gt;             &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; | &lt;factor&gt; &lt;factor&gt; &lt;numeric&gt;
+#&gt;   [1] PvP01_11_v1 634386-635717      + | EuPathDB     gene      &lt;NA&gt;
+#&gt;   [2] PvP01_11_v1 634386-635717      + | EuPathDB     mRNA      &lt;NA&gt;
+#&gt;   [3] PvP01_11_v1 634386-635717      + | EuPathDB     exon      &lt;NA&gt;
+#&gt;   [4] PvP01_11_v1 634386-635717      + | EuPathDB      CDS      &lt;NA&gt;
+#&gt;   [5] PvP01_07_v1 348842-350489      - | EuPathDB     gene      &lt;NA&gt;
+#&gt;   [6] PvP01_07_v1 348842-350489      - | EuPathDB     mRNA      &lt;NA&gt;
+#&gt;           phase                      ID
+#&gt;       &lt;integer&gt;             &lt;character&gt;
+#&gt;   [1]      &lt;NA&gt;           PVP01_1114900
+#&gt;   [2]      &lt;NA&gt;         PVP01_1114900.1
+#&gt;   [3]      &lt;NA&gt;   exon_PVP01_1114900-E1
+#&gt;   [4]         0 PVP01_1114900.1-p1-CDS1
+#&gt;   [5]      &lt;NA&gt;           PVP01_0706500
+#&gt;   [6]      &lt;NA&gt;         PVP01_0706500.1
+#&gt;                               description          Parent
+#&gt;                               &lt;character&gt; &lt;CharacterList&gt;
+#&gt;   [1] elongation factor 1-alpha, putative            &lt;NA&gt;
+#&gt;   [2] elongation factor 1-alpha, putative   PVP01_1114900
+#&gt;   [3]                                &lt;NA&gt; PVP01_1114900.1
+#&gt;   [4]                                &lt;NA&gt; PVP01_1114900.1
+#&gt;   [5] plasma membrane protein 1, putative            &lt;NA&gt;
+#&gt;   [6] plasma membrane protein 1, putative   PVP01_0706500
+#&gt;        protein_source_id                                 Note
+#&gt;              &lt;character&gt;                      &lt;CharacterList&gt;
+#&gt;   [1]               &lt;NA&gt;                                 &lt;NA&gt;
+#&gt;   [2]               &lt;NA&gt;                                 &lt;NA&gt;
+#&gt;   [3]               &lt;NA&gt;                                 &lt;NA&gt;
+#&gt;   [4] PVP01_1114900.1-p1                                 &lt;NA&gt;
+#&gt;   [5]               &lt;NA&gt;                                 &lt;NA&gt;
+#&gt;   [6]               &lt;NA&gt; 3.1.30.1 (Aspergillus nuclease S(1))
+#&gt;               Ontology_term
+#&gt;             &lt;CharacterList&gt;
+#&gt;   [1]                      
+#&gt;   [2]                      
+#&gt;   [3]                      
+#&gt;   [4]                      
+#&gt;   [5]                      
+#&gt;   [6] GO_0005622,GO_0005886
+#&gt;   -------
+#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+A mess!
+---
+
+## Retrieve exons and group exons within genes
+
+
+```r
+all_exons &lt;- gff_rngs %&gt;% 
+  filter(type == "exon") %&gt;% 
+  mutate(exon_rank = sub("(.*)-([^-]+$)", "\\2", ID),
+         gene_id = gsub("exon_|-[^-]+$", "", ID),
+         exon_id = paste0(gene_id, ".", exon_rank)) %&gt;% 
+  select(gene_id, exon_id, exon_rank) 
+head(all_exons)
+```
+
+```
+#&gt; GRanges object with 6 ranges and 3 metadata columns:
+#&gt;          seqnames          ranges strand |       gene_id           exon_id
+#&gt;             &lt;Rle&gt;       &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;       &lt;character&gt;
+#&gt;   [1] PvP01_11_v1   634386-635717      + | PVP01_1114900  PVP01_1114900.E1
+#&gt;   [2] PvP01_07_v1   348842-348940      - | PVP01_0706500  PVP01_0706500.E3
+#&gt;   [3] PvP01_07_v1   349108-349199      - | PVP01_0706500  PVP01_0706500.E2
+#&gt;   [4] PvP01_07_v1   349382-350489      - | PVP01_0706500  PVP01_0706500.E1
+#&gt;   [5] PvP01_09_v1 1203603-1204923      - | PVP01_0927400 PVP01_0927400.E19
+#&gt;   [6] PvP01_09_v1 1205095-1205132      - | PVP01_0927400 PVP01_0927400.E18
+#&gt;         exon_rank
+#&gt;       &lt;character&gt;
+#&gt;   [1]          E1
+#&gt;   [2]          E3
+#&gt;   [3]          E2
+#&gt;   [4]          E1
+#&gt;   [5]         E19
+#&gt;   [6]         E18
+#&gt;   -------
+#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+---
+
+## Merge overlapping ranges within an exon
+
+
+```r
+sub_exons &lt;- all_exons %&gt;% 
+  group_by(gene_id) %&gt;% 
+  reduce_ranges_directed() %&gt;% 
+  group_by(gene_id) %&gt;% 
+  filter(n() &gt; 1) %&gt;% 
+  ungroup() 
+
+head(sub_exons)
+```
+
+```
+#&gt; GRanges object with 6 ranges and 1 metadata column:
+#&gt;                        seqnames     ranges strand |       gene_id
+#&gt;                           &lt;Rle&gt;  &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
+#&gt;   [1] Transfer.PvP01_00_1.final     53-135      + | PVP01_0000010
+#&gt;   [2] Transfer.PvP01_00_1.final    199-415      + | PVP01_0000010
+#&gt;   [3] Transfer.PvP01_00_1.final    502-669      + | PVP01_0000010
+#&gt;   [4] Transfer.PvP01_00_1.final  7307-7992      + | PVP01_0000030
+#&gt;   [5] Transfer.PvP01_00_1.final  8049-8713      + | PVP01_0000030
+#&gt;   [6] Transfer.PvP01_00_1.final 8846-10065      + | PVP01_0000030
+#&gt;   -------
+#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+---
+
+## Subtract exonic regions from genes
+
+
+```r
+genes &lt;- gff_rngs %&gt;% 
+  filter(type == "gene") %&gt;% 
+  mutate(gene_id = ID) %&gt;% 
+  select(gene_id)
+
+introns &lt;- genes %&gt;% 
+  bind_ranges(sub_exons) %&gt;% 
+  group_by(gene_id) %&gt;% 
+  disjoin_ranges_directed() %&gt;% 
+  filter_by_non_overlaps(all_exons)
+head(introns)
+```
+
+```
+#&gt; GRanges object with 6 ranges and 1 metadata column:
+#&gt;                        seqnames      ranges strand |       gene_id
+#&gt;                           &lt;Rle&gt;   &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
+#&gt;   [1] Transfer.PvP01_00_1.final     136-198      + | PVP01_0000010
+#&gt;   [2] Transfer.PvP01_00_1.final     416-501      + | PVP01_0000010
+#&gt;   [3] Transfer.PvP01_00_1.final   7993-8048      + | PVP01_0000030
+#&gt;   [4] Transfer.PvP01_00_1.final   8714-8845      + | PVP01_0000030
+#&gt;   [5] Transfer.PvP01_00_1.final 11227-11285      + | PVP01_0000040
+#&gt;   [6] Transfer.PvP01_00_1.final 11763-11806      + | PVP01_0000040
+#&gt;   -------
+#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+
+---
+
+## Summary
+
+![](hex.png)&lt;!-- --&gt;
+
+---
+
+# Acknowledgements
+
+- *Michael Lawrence*
+- *Di Cook*
+- Matt Ritchie
+- Charity Law
+- Shian Su
+- Earo Wang
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({
