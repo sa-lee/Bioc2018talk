@@ -21,6 +21,7 @@ library(plyranges)
 
 ## Bioconductor infrastructure is powerful...
 
+<!-- include package hex stickers -->
 
 ---
 
@@ -39,7 +40,6 @@ n_classes
 n_methods <- showMethods(classes = "Ranges",  printTo = FALSE) %>% 
   grep("^Function", .) %>% 
   length()
-
 n_methods
 ```
 
@@ -62,6 +62,9 @@ knitr::include_graphics("GRanges.png")
 
 # ... so we can design a grammar
 
+<!-- maybe a figure would be better here -->
+
+
 - functions are verbs
 - GRanges in, GRanges out
 - leverage existing Bioconductor infrastructure 
@@ -71,16 +74,9 @@ knitr::include_graphics("GRanges.png")
 
 # Finding introns in a non-model organism
 
-I have a GFF file from a non-model organism 😑, how can I find
-introns by (single) genes?
+I have a GFF file from a non-model organism 😑.
 
-Workflow:
-1. Read our GFF file in as GRanges object
-2. Extract exons, and for each exon merge overlapping ranges
-3. Filter if there is only one range within an exon
-4. Extract genes, concatante them with the exons, and for each gene
-disjoin the ranges
-5. Filter by non overlaps with exons
+How can I find introns by (single) genes?
 
 ---
 
@@ -95,7 +91,7 @@ head(gff_rngs)
 A mess!
 ---
 
-## Retrieve exons and group exons within genes
+## Retrieve exons and extract IDs
 
 ```{r}
 all_exons <- gff_rngs %>% 
@@ -109,7 +105,7 @@ head(all_exons)
 
 ---
 
-## Merge overlapping ranges within an exon
+## Merge overlapping exons within a gene
 
 ```{r}
 sub_exons <- all_exons %>% 
@@ -145,7 +141,7 @@ head(introns)
 
 ## Summary
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, fig.align='center', out.width='600'}
 knitr::include_graphics("hex.png")
 ```
 
@@ -153,8 +149,8 @@ knitr::include_graphics("hex.png")
 
 # Acknowledgements
 
-- *Michael Lawrence*
-- *Di Cook*
+- **Michael Lawrence**
+- **Di Cook**
 - Matt Ritchie
 - Charity Law
 - Shian Su
