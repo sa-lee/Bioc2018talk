@@ -3,8 +3,9 @@
   <head>
     <title> fluent genomic data analysis with R/Bioconductor</title>
     <meta charset="utf-8">
-    <meta name="author" content="Stuart Lee Monash University" />
+    <meta name="author" content="<i class="fab  fa-twitter "></i> _StuartLee   Monash University" />
     <meta name="date" content="2018-07-27" />
+    <link href="libs/font-awesome/css/fontawesome-all.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="my.css" type="text/css" />
     <link rel="stylesheet" href="libs/remark-css/default-fonts.css" type="text/css" />
   </head>
@@ -13,7 +14,7 @@
 class: center, middle, inverse, title-slide
 
 # <img src='hex.png' width = 200><br>fluent genomic data analysis with R/Bioconductor
-### Stuart Lee<br>Monash University
+### <i class="fab  fa-twitter "></i> _StuartLee <br> Monash University
 ### 2018-07-27
 
 ---
@@ -95,182 +96,93 @@ class: inverse, center, middle
 - **merging**: combining ranges based on overlaps/nearest neighbors
 
 
-
 _Biorxiv 327841_
 ]
 
 
 ---
 
-# Finding introns in a non-model organism
+## Grammar elements: arithimetic
 
-.large[I have a GFF file from a non-model organism 😑.
-
-How can I find introns?
-
-What's our workflow?
-]
- 
----
-
-
-
-## Reading in the GFF
+.large[ The start, end, and width of a GRanges of are mutually dependent ]
 
 
 ```r
-gff_rngs &lt;- read_gff("my.gff")
+gr &lt;- GRanges("chr1:10-20:+")
 
-gff_rngs %&gt;% 
-  select(ID, type) %&gt;% 
-  head(3)
+gr %&gt;%
+  mutate(width = width + 5L)
 ```
 
-```
-GRanges object with 3 ranges and 2 metadata columns:
-         seqnames        ranges strand |                    ID     type
-            &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; |           &lt;character&gt; &lt;factor&gt;
-  [1] PvP01_11_v1 634386-635717      + |         PVP01_1114900     gene
-  [2] PvP01_11_v1 634386-635717      + |       PVP01_1114900.1     mRNA
-  [3] PvP01_11_v1 634386-635717      + | exon_PVP01_1114900-E1     exon
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
+.large[How do we express changes to width, while fixing other coordinates?]
+
+---
+
+## Anchoring operator
+
+An anchor decorates a GRanges and changes downstream behaviour 
+
+
+```r
+gr %&gt;% 
+  anchor_end() %&gt;% 
+  mutate(width = width + 5L)
+
+gr %&gt;% 
+  anchor_5p() %&gt;% 
+  mutate(width = width + 5L)
 ```
 
 ---
 
-## Retrieve exons and extract IDs
+## Grammar element: restrictions
+
+.large[Similar to anchoring, grouping partitions a GRanges object and modifies any downstream behavior:]
 
 
 ```r
-all_exons &lt;- gff_rngs %&gt;% 
-  filter(type == "exon") %&gt;% 
-  mutate(exon_rank = sub("(.*)-([^-]+$)", "\\2", ID),
-         gene_id = gsub("exon_|-[^-]+$", "", ID),
-         exon_id = paste0(gene_id, ".", exon_rank)) %&gt;% 
-  select(gene_id, exon_id, exon_rank) 
-
-all_exons %&gt;% 
-  head(3)
-```
-
-```
-GRanges object with 3 ranges and 3 metadata columns:
-         seqnames        ranges strand |       gene_id          exon_id
-            &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;      &lt;character&gt;
-  [1] PvP01_11_v1 634386-635717      + | PVP01_1114900 PVP01_1114900.E1
-  [2] PvP01_07_v1 348842-348940      - | PVP01_0706500 PVP01_0706500.E3
-  [3] PvP01_07_v1 349108-349199      - | PVP01_0706500 PVP01_0706500.E2
-        exon_rank
-      &lt;character&gt;
-  [1]          E1
-  [2]          E3
-  [3]          E2
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
-```
-
----
-
-## For each gene, merge overlapping exons
-
-
-```r
-sub_exons &lt;- all_exons %&gt;% 
-  group_by(gene_id) %&gt;%
-  # this will merge overlapping exons for each group
-  reduce_ranges_directed()
-
-sub_exons %&gt;% 
-  head(3)
-```
-
-```
-GRanges object with 3 ranges and 1 metadata column:
-                       seqnames    ranges strand |       gene_id
-                          &lt;Rle&gt; &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
-  [1] Transfer.PvP01_00_1.final    53-135      + | PVP01_0000010
-  [2] Transfer.PvP01_00_1.final   199-415      + | PVP01_0000010
-  [3] Transfer.PvP01_00_1.final   502-669      + | PVP01_0000010
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
-```
----
-
-## Get the ranges for each gene from the exons
-
-
-```r
-genes &lt;- all_exons %&gt;% 
-  group_by(seqnames, strand, gene_id) %&gt;% 
-  summarise(start = min(start), end = max(end)) %&gt;% 
-  as_granges()
-
-# other, simpler way
-# genes &lt;- gff_rngs %&gt;% filter(type == "gene")
-
-genes %&gt;% 
-  head(3)
-```
-
-```
-GRanges object with 3 ranges and 1 metadata column:
-                       seqnames     ranges strand |       gene_id
-                          &lt;Rle&gt;  &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
-  [1] Transfer.PvP01_00_1.final     53-669      + | PVP01_0000010
-  [2] Transfer.PvP01_00_1.final  2797-3513      + | PVP01_0000020
-  [3] Transfer.PvP01_00_1.final 7307-10065      + | PVP01_0000030
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
-```
-
----
-
-
-## Disjoin over each genes interval and filter
-
-
-```r
-introns &lt;- genes %&gt;% 
-  bind_ranges(sub_exons) %&gt;% 
+exons %&gt;% 
   group_by(gene_id) %&gt;% 
-  disjoin_ranges_directed() %&gt;% 
-  filter_by_non_overlaps(sub_exons)
-
-introns 
+  filter(n() &gt; 1)
 ```
 
+.large[And include ability to restrict by overlaps:]
+
+```r
+exons %&gt;%
+  filter_by_non_overlaps(snps)
 ```
-GRanges object with 10913 ranges and 1 metadata column:
-                           seqnames          ranges strand |
-                              &lt;Rle&gt;       &lt;IRanges&gt;  &lt;Rle&gt; |
-      [1] Transfer.PvP01_00_1.final         136-198      + |
-      [2] Transfer.PvP01_00_1.final         416-501      + |
-      [3] Transfer.PvP01_00_1.final       7993-8048      + |
-      [4] Transfer.PvP01_00_1.final       8714-8845      + |
-      [5] Transfer.PvP01_00_1.final     11227-11285      + |
-      ...                       ...             ...    ... .
-  [10909]               PvP01_14_v1 3143386-3143490      - |
-  [10910]               PvP01_14_v1 3144211-3144350      - |
-  [10911]               PvP01_14_v1 3146171-3146278      - |
-  [10912]               PvP01_14_v1 3147482-3147623      - |
-  [10913]              PvP01_API_v1     15883-15884      - |
-                 gene_id
-             &lt;character&gt;
-      [1]  PVP01_0000010
-      [2]  PVP01_0000010
-      [3]  PVP01_0000030
-      [4]  PVP01_0000030
-      [5]  PVP01_0000040
-      ...            ...
-  [10909]  PVP01_1472900
-  [10910]  PVP01_1472900
-  [10911]  PVP01_1473000
-  [10912]  PVP01_1473000
-  [10913] PVP01_API04100
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
+
+---
+## Grammar elements: aggregation
+
+.large[We want to summarise metadata over genomic coordinates or by groups (or both)]
+
+
+```r
+exons %&gt;% 
+  group_by(gene_id) %&gt;% 
+  summarise(score = sum(score))
+
+exons %&gt;% 
+  group_by(gene_id) %&gt;% 
+  # merge overlapping regions in a gene
+  reduce_ranges(score = sum(score))
 ```
+---
+
+## Grammar element: merging
+
+.large[
+- Reimagine overlap/nearest neighbour operations as table joins
+- Always be explicit about strand
+]
+
+---
+
+# Overlap Joins
+
+&lt;img src="olap.png" style="display: block; margin: auto;" /&gt;
 
 ---
 
@@ -282,8 +194,9 @@ GRanges object with 10913 ranges and 1 metadata column:
 
 - A cognitive framework for playing with GRanges
 
-- a stepping stone from tidyverse to Bioconductor
+- A stepping stone from tidyverse to Bioconductor
 
+- Learn more at workshop today at 4pm in VC206
 ]
 
 ---
@@ -297,11 +210,9 @@ GRanges object with 10913 ranges and 1 metadata column:
 - Shian Su
 - Earo Wang
 
-.large[
 Development: https://github.com/sa-lee/plyranges
 
-Contributions/feedback from the Bioconductor community!
-]
+Contributions/feedback welcome from the Bioconductor community!
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

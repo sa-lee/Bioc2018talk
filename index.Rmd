@@ -1,6 +1,6 @@
 ---
 title: "<img src='hex.png' width = 200><br>fluent genomic data analysis with R/Bioconductor"
-author: "Stuart Lee<br>Monash University"
+author: "`r icon::fa_twitter()` _StuartLee <br> Monash University"
 date: "2018-07-27"
 output:
   xaringan::moon_reader:
@@ -88,95 +88,89 @@ knitr::include_graphics("design.png")
 - **merging**: combining ranges based on overlaps/nearest neighbors
 
 
-
 _Biorxiv 327841_
 ]
 
 
 ---
 
-# Finding introns in a non-model organism
+## Grammar elements: arithimetic
 
-.large[I have a GFF file from a non-model organism 😑.
+.large[ The start, end, and width of a GRanges of are mutually dependent ]
 
-How can I find introns?
+```{r, eval = FALSE}
+gr <- GRanges("chr1:10-20:+")
 
-What's our workflow?
-]
- 
+gr %>%
+  mutate(width = width + 5L)
+```
+
+.large[How do we express changes to width, while fixing other coordinates?]
+
 ---
 
+## Anchoring operator
 
+An anchor decorates a GRanges and changes downstream behaviour 
 
-## Reading in the GFF
+```{r, eval = FALSE}
+gr %>% 
+  anchor_end() %>% 
+  mutate(width = width + 5L)
 
-```{r}
-gff_rngs <- read_gff("my.gff")
-
-gff_rngs %>% 
-  select(ID, type) %>% 
-  head(3)
+gr %>% 
+  anchor_5p() %>% 
+  mutate(width = width + 5L)
 ```
 
 ---
 
-## Retrieve exons and extract IDs
+## Grammar element: restrictions
 
-```{r}
-all_exons <- gff_rngs %>% 
-  filter(type == "exon") %>% 
-  mutate(exon_rank = sub("(.*)-([^-]+$)", "\\2", ID),
-         gene_id = gsub("exon_|-[^-]+$", "", ID),
-         exon_id = paste0(gene_id, ".", exon_rank)) %>% 
-  select(gene_id, exon_id, exon_rank) 
+.large[Similar to anchoring, grouping partitions a GRanges object and modifies any downstream behavior:]
 
-all_exons %>% 
-  head(3)
-```
-
----
-
-## For each gene, merge overlapping exons
-
-```{r}
-sub_exons <- all_exons %>% 
-  group_by(gene_id) %>%
-  # this will merge overlapping exons for each group
-  reduce_ranges_directed()
-
-sub_exons %>% 
-  head(3)
-```
----
-
-## Get the ranges for each gene from the exons
-
-```{r}
-genes <- all_exons %>% 
-  group_by(seqnames, strand, gene_id) %>% 
-  summarise(start = min(start), end = max(end)) %>% 
-  as_granges()
-
-# other, simpler way
-# genes <- gff_rngs %>% filter(type == "gene")
-
-genes %>% 
-  head(3)
-```
-
----
-
-
-## Disjoin over each genes interval and filter
-
-```{r}
-introns <- genes %>% 
-  bind_ranges(sub_exons) %>% 
+```{r, eval = FALSE}
+exons %>% 
   group_by(gene_id) %>% 
-  disjoin_ranges_directed() %>% 
-  filter_by_non_overlaps(sub_exons)
+  filter(n() > 1)
+```
 
-introns 
+.large[And include ability to restrict by overlaps:]
+```{r, eval = FALSE}
+exons %>%
+  filter_by_non_overlaps(snps)
+```
+
+---
+## Grammar elements: aggregation
+
+.large[We want to summarise metadata over genomic coordinates or by groups (or both)]
+
+```{r, eval = FALSE}
+exons %>% 
+  group_by(gene_id) %>% 
+  summarise(score = sum(score))
+
+exons %>% 
+  group_by(gene_id) %>% 
+  # merge overlapping regions in a gene
+  reduce_ranges(score = sum(score))
+```
+---
+
+## Grammar element: merging
+
+.large[
+- Reimagine overlap/nearest neighbour operations as table joins
+- Always be explicit about strand
+]
+
+---
+
+# Overlap Joins
+
+```{r, echo = FALSE, fig.align='center'}
+knitr::include_graphics("olap.png")
 ```
 
 ---
@@ -189,8 +183,9 @@ introns
 
 - A cognitive framework for playing with GRanges
 
-- a stepping stone from tidyverse to Bioconductor
+- A stepping stone from tidyverse to Bioconductor
 
+- Learn more at workshop today at 4pm in VC206
 ]
 
 ---
@@ -204,8 +199,6 @@ introns
 - Shian Su
 - Earo Wang
 
-.large[
 Development: https://github.com/sa-lee/plyranges
 
-Contributions/feedback from the Bioconductor community!
-]
+Contributions/feedback welcome from the Bioconductor community!
