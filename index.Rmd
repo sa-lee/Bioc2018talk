@@ -27,9 +27,14 @@ class: center
   <img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/GenomicRanges/GenomicRanges.png" width = "200">
   <img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/IRanges/IRanges.png" width = "200">
 </div>
+
+.large[
+Bioconductor abstractions enable **developing** software for biology!
+]
+
 ---
 
-# ...but the learning curve is steep!
+# ... however
 
 ```{r}
 pkgs_to_get_started <- c("S4Vectors", "IRanges", "GenomicRanges")
@@ -45,11 +50,12 @@ n_methods <- length(methods(class = "Ranges"))
 n_methods
 ```
 
+.large[A lot is expected of an R beginner to **analyse** data with Bioconductor]
+
 ---
 class: inverse, center, middle
 
 # How far can a user get with just a GRanges?
-
 
 ---
 
@@ -81,18 +87,26 @@ knitr::include_graphics("design.png")
 - **aggregation**: summarizing over groups/overlaps/unions
 - **merging**: combining ranges based on overlaps/nearest neighbors
 
+
+
+_Biorxiv 327841_
 ]
 
-See also: https://bit.ly/2v61UVs
+
 ---
 
 # Finding introns in a non-model organism
 
 .large[I have a GFF file from a non-model organism 😑.
 
-How can I find introns?]
+How can I find introns?
+
+What's our workflow?
+]
  
 ---
+
+
 
 ## Reading in the GFF
 
@@ -152,22 +166,13 @@ genes %>%
 
 ---
 
-## Combine the genes and exon ranges, and group by gene
-
-```{r}
-introns <- genes %>% 
-  bind_ranges(sub_exons) %>% 
-  group_by(gene_id)
-
-introns
-```
-
----
 
 ## Disjoin over each genes interval and filter
 
 ```{r}
-introns <- introns %>% 
+introns <- genes %>% 
+  bind_ranges(sub_exons) %>% 
+  group_by(gene_id) %>% 
   disjoin_ranges_directed() %>% 
   filter_by_non_overlaps(sub_exons)
 
@@ -184,7 +189,7 @@ introns
 
 - A cognitive framework for playing with GRanges
 
-- a stepping stone from tidyverse to biocverse 
+- a stepping stone from tidyverse to Bioconductor
 
 ]
 

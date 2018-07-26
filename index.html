@@ -29,9 +29,14 @@ class: center
   &lt;img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/GenomicRanges/GenomicRanges.png" width = "200"&gt;
   &lt;img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/IRanges/IRanges.png" width = "200"&gt;
 &lt;/div&gt;
+
+.large[
+Bioconductor abstractions enable **developing** software for biology!
+]
+
 ---
 
-# ...but the learning curve is steep!
+# ... however
 
 
 ```r
@@ -58,11 +63,12 @@ n_methods
 [1] 210
 ```
 
+.large[A lot is expected of an R beginner to **analyse** data with Bioconductor]
+
 ---
 class: inverse, center, middle
 
 # How far can a user get with just a GRanges?
-
 
 ---
 
@@ -88,18 +94,26 @@ class: inverse, center, middle
 - **aggregation**: summarizing over groups/overlaps/unions
 - **merging**: combining ranges based on overlaps/nearest neighbors
 
+
+
+_Biorxiv 327841_
 ]
 
-See also: https://bit.ly/2v61UVs
+
 ---
 
 # Finding introns in a non-model organism
 
 .large[I have a GFF file from a non-model organism 😑.
 
-How can I find introns?]
+How can I find introns?
+
+What's our workflow?
+]
  
 ---
+
+
 
 ## Reading in the GFF
 
@@ -212,44 +226,14 @@ GRanges object with 3 ranges and 1 metadata column:
 
 ---
 
-## Combine the genes and exon ranges, and group by gene
-
-
-```r
-introns &lt;- genes %&gt;% 
-  bind_ranges(sub_exons) %&gt;% 
-  group_by(gene_id)
-
-introns
-```
-
-```
-GRanges object with 24584 ranges and 1 metadata column:
-Groups: gene_id [6830]
-                           seqnames      ranges strand |        gene_id
-                              &lt;Rle&gt;   &lt;IRanges&gt;  &lt;Rle&gt; |    &lt;character&gt;
-      [1] Transfer.PvP01_00_1.final      53-669      + |  PVP01_0000010
-      [2] Transfer.PvP01_00_1.final   2797-3513      + |  PVP01_0000020
-      [3] Transfer.PvP01_00_1.final  7307-10065      + |  PVP01_0000030
-      [4] Transfer.PvP01_00_1.final 10224-12567      + |  PVP01_0000040
-      [5] Transfer.PvP01_00_1.final 14215-16428      - |  PVP01_0000050
-      ...                       ...         ...    ... .            ...
-  [24580]              PvP01_MIT_v1   3066-3101      + | PVP01_MIT03100
-  [24581]              PvP01_MIT_v1   3102-3182      + | PVP01_MIT03200
-  [24582]              PvP01_MIT_v1   3267-4760      + | PVP01_MIT03300
-  [24583]              PvP01_MIT_v1   4782-5912      + | PVP01_MIT03400
-  [24584]              PvP01_MIT_v1   5914-5985      + | PVP01_MIT03500
-  -------
-  seqinfo: 178 sequences from an unspecified genome; no seqlengths
-```
-
----
 
 ## Disjoin over each genes interval and filter
 
 
 ```r
-introns &lt;- introns %&gt;% 
+introns &lt;- genes %&gt;% 
+  bind_ranges(sub_exons) %&gt;% 
+  group_by(gene_id) %&gt;% 
   disjoin_ranges_directed() %&gt;% 
   filter_by_non_overlaps(sub_exons)
 
@@ -298,7 +282,7 @@ GRanges object with 10913 ranges and 1 metadata column:
 
 - A cognitive framework for playing with GRanges
 
-- a stepping stone from tidyverse to biocverse 
+- a stepping stone from tidyverse to Bioconductor
 
 ]
 
