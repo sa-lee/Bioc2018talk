@@ -1,19 +1,18 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>plyranges</title>
+    <title> fluent genomic data analysis with R/Bioconductor</title>
     <meta charset="utf-8">
     <meta name="author" content="Stuart Lee" />
     <meta name="date" content="2018-07-27" />
-    <link href="libs/remark-css/default.css" rel="stylesheet" />
-    <link href="libs/remark-css/default-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="my.css" type="text/css" />
+    <link rel="stylesheet" href="libs/remark-css/default-fonts.css" type="text/css" />
   </head>
   <body>
     <textarea id="source">
 class: center, middle, inverse, title-slide
 
-# plyranges
-## fluent genomic data analysis with R/Bioconductor
+# <img src='hex.png' width = 250><br>fluent genomic data analysis with R/Bioconductor
 ### Stuart Lee
 ### 2018-07-27
 
@@ -22,12 +21,17 @@ class: center, middle, inverse, title-slide
 
 
 
-## Bioconductor infrastructure is powerful...
+class: center
+# Bioconductor infrastructure is powerful...
 
-
+&lt;div style = "display:block; margin-left:auto; margin-right:auto"&gt;
+  &lt;img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/Bioconductor_1.0/Bioconductor.png", width = 200&gt;
+  &lt;img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/GenomicRanges/GenomicRanges.png" width = "200"&gt;
+  &lt;img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/IRanges/IRanges.png" width = "200"&gt;
+&lt;/div&gt;
 ---
 
-## but the learning curve is steep
+# ...but the learning curve is steep!
 
 
 ```r
@@ -42,118 +46,86 @@ n_classes
 ```
 
 ```
-#&gt; [1] 143
+[1] 143
 ```
 
 ```r
-n_methods &lt;- showMethods(classes = "Ranges",  printTo = FALSE) %&gt;% 
-  grep("^Function", .) %&gt;% 
-  length()
-
+n_methods &lt;- length(methods(class = "Ranges"))
 n_methods
 ```
 
 ```
-#&gt; [1] 585
+[1] 210
 ```
 
 ---
 class: inverse, center, middle
 
-# How far can we get with just a GRanges?
+# How far can a user get with just a GRanges?
 
 
 ---
 
-# GRanges are tidy...
+# GRanges are tidy!
 
 &lt;img src="GRanges.png" style="display: block; margin: auto;" /&gt;
 
+---
+
+# Design a grammar
+
+
+&lt;img src="design.png" width="1080" style="display: block; margin: auto;" /&gt;
 
 ---
 
-# ... so we can design a grammar
+# Include genomic semantics
 
-- functions are verbs
-- GRanges in, GRanges out
-- leverage existing Bioconductor infrastructure 
-- enable a user to develop expressive workflows
+.large[
 
+- **arithmetic**: mutating/shifting/re-sizing/flanking
+- **restriction**: filtering by metadata or ranges
+- **aggregation**: summarizing over groups/overlaps/unions
+- **merging**: combining ranges based on overlaps/nearest neighbors
+
+]
+
+See also: https://bit.ly/2v61UVs
 ---
 
 # Finding introns in a non-model organism
 
-I have a GFF file from a non-model organism 😑, how can I find
-introns by (single) genes?
+.large[I have a GFF file from a non-model organism 😑.
 
-Workflow:
-1. Read our GFF file in as GRanges object
-2. Extract exons, and for each exon merge overlapping ranges
-3. Filter if there is only one range within an exon
-4. Extract genes, concatante them with the exons, and for each gene
-disjoin the ranges
-5. Filter by non overlaps with exons
-
+How can I find introns?]
+ 
 ---
 
 ## Reading in the GFF
 
 
 ```r
-gff_rngs &lt;- read_gff("PlasmoDB-38_PvivaxP01.gff")
-head(gff_rngs)
+gff_rngs &lt;- read_gff("my.gff")
+
+gff_rngs %&gt;% 
+  select(ID, type) %&gt;% 
+  head(3)
 ```
 
 ```
-#&gt; GRanges object with 6 ranges and 10 metadata columns:
-#&gt;          seqnames        ranges strand |   source     type     score
-#&gt;             &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; | &lt;factor&gt; &lt;factor&gt; &lt;numeric&gt;
-#&gt;   [1] PvP01_11_v1 634386-635717      + | EuPathDB     gene      &lt;NA&gt;
-#&gt;   [2] PvP01_11_v1 634386-635717      + | EuPathDB     mRNA      &lt;NA&gt;
-#&gt;   [3] PvP01_11_v1 634386-635717      + | EuPathDB     exon      &lt;NA&gt;
-#&gt;   [4] PvP01_11_v1 634386-635717      + | EuPathDB      CDS      &lt;NA&gt;
-#&gt;   [5] PvP01_07_v1 348842-350489      - | EuPathDB     gene      &lt;NA&gt;
-#&gt;   [6] PvP01_07_v1 348842-350489      - | EuPathDB     mRNA      &lt;NA&gt;
-#&gt;           phase                      ID
-#&gt;       &lt;integer&gt;             &lt;character&gt;
-#&gt;   [1]      &lt;NA&gt;           PVP01_1114900
-#&gt;   [2]      &lt;NA&gt;         PVP01_1114900.1
-#&gt;   [3]      &lt;NA&gt;   exon_PVP01_1114900-E1
-#&gt;   [4]         0 PVP01_1114900.1-p1-CDS1
-#&gt;   [5]      &lt;NA&gt;           PVP01_0706500
-#&gt;   [6]      &lt;NA&gt;         PVP01_0706500.1
-#&gt;                               description          Parent
-#&gt;                               &lt;character&gt; &lt;CharacterList&gt;
-#&gt;   [1] elongation factor 1-alpha, putative            &lt;NA&gt;
-#&gt;   [2] elongation factor 1-alpha, putative   PVP01_1114900
-#&gt;   [3]                                &lt;NA&gt; PVP01_1114900.1
-#&gt;   [4]                                &lt;NA&gt; PVP01_1114900.1
-#&gt;   [5] plasma membrane protein 1, putative            &lt;NA&gt;
-#&gt;   [6] plasma membrane protein 1, putative   PVP01_0706500
-#&gt;        protein_source_id                                 Note
-#&gt;              &lt;character&gt;                      &lt;CharacterList&gt;
-#&gt;   [1]               &lt;NA&gt;                                 &lt;NA&gt;
-#&gt;   [2]               &lt;NA&gt;                                 &lt;NA&gt;
-#&gt;   [3]               &lt;NA&gt;                                 &lt;NA&gt;
-#&gt;   [4] PVP01_1114900.1-p1                                 &lt;NA&gt;
-#&gt;   [5]               &lt;NA&gt;                                 &lt;NA&gt;
-#&gt;   [6]               &lt;NA&gt; 3.1.30.1 (Aspergillus nuclease S(1))
-#&gt;               Ontology_term
-#&gt;             &lt;CharacterList&gt;
-#&gt;   [1]                      
-#&gt;   [2]                      
-#&gt;   [3]                      
-#&gt;   [4]                      
-#&gt;   [5]                      
-#&gt;   [6] GO_0005622,GO_0005886
-#&gt;   -------
-#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+GRanges object with 3 ranges and 2 metadata columns:
+         seqnames        ranges strand |                    ID     type
+            &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; |           &lt;character&gt; &lt;factor&gt;
+  [1] PvP01_11_v1 634386-635717      + |         PVP01_1114900     gene
+  [2] PvP01_11_v1 634386-635717      + |       PVP01_1114900.1     mRNA
+  [3] PvP01_11_v1 634386-635717      + | exon_PVP01_1114900-E1     exon
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
 ```
 
-A mess!
 ---
 
-## Retrieve exons and group exons within genes
+## Retrieve exons and extract IDs
 
 
 ```r
@@ -163,111 +135,189 @@ all_exons &lt;- gff_rngs %&gt;%
          gene_id = gsub("exon_|-[^-]+$", "", ID),
          exon_id = paste0(gene_id, ".", exon_rank)) %&gt;% 
   select(gene_id, exon_id, exon_rank) 
-head(all_exons)
+
+all_exons %&gt;% 
+  head(3)
 ```
 
 ```
-#&gt; GRanges object with 6 ranges and 3 metadata columns:
-#&gt;          seqnames          ranges strand |       gene_id           exon_id
-#&gt;             &lt;Rle&gt;       &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;       &lt;character&gt;
-#&gt;   [1] PvP01_11_v1   634386-635717      + | PVP01_1114900  PVP01_1114900.E1
-#&gt;   [2] PvP01_07_v1   348842-348940      - | PVP01_0706500  PVP01_0706500.E3
-#&gt;   [3] PvP01_07_v1   349108-349199      - | PVP01_0706500  PVP01_0706500.E2
-#&gt;   [4] PvP01_07_v1   349382-350489      - | PVP01_0706500  PVP01_0706500.E1
-#&gt;   [5] PvP01_09_v1 1203603-1204923      - | PVP01_0927400 PVP01_0927400.E19
-#&gt;   [6] PvP01_09_v1 1205095-1205132      - | PVP01_0927400 PVP01_0927400.E18
-#&gt;         exon_rank
-#&gt;       &lt;character&gt;
-#&gt;   [1]          E1
-#&gt;   [2]          E3
-#&gt;   [3]          E2
-#&gt;   [4]          E1
-#&gt;   [5]         E19
-#&gt;   [6]         E18
-#&gt;   -------
-#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+GRanges object with 3 ranges and 3 metadata columns:
+         seqnames        ranges strand |       gene_id          exon_id
+            &lt;Rle&gt;     &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;      &lt;character&gt;
+  [1] PvP01_11_v1 634386-635717      + | PVP01_1114900 PVP01_1114900.E1
+  [2] PvP01_07_v1 348842-348940      - | PVP01_0706500 PVP01_0706500.E3
+  [3] PvP01_07_v1 349108-349199      - | PVP01_0706500 PVP01_0706500.E2
+        exon_rank
+      &lt;character&gt;
+  [1]          E1
+  [2]          E3
+  [3]          E2
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
 ```
 
 ---
 
-## Merge overlapping ranges within an exon
+## For each gene, merge overlapping exons
 
 
 ```r
 sub_exons &lt;- all_exons %&gt;% 
-  group_by(gene_id) %&gt;% 
-  reduce_ranges_directed() %&gt;% 
-  group_by(gene_id) %&gt;% 
-  filter(n() &gt; 1) %&gt;% 
-  ungroup() 
+  group_by(gene_id) %&gt;%
+  # this will merge overlapping exons for each group
+  reduce_ranges_directed()
 
-head(sub_exons)
+sub_exons %&gt;% 
+  head(3)
 ```
 
 ```
-#&gt; GRanges object with 6 ranges and 1 metadata column:
-#&gt;                        seqnames     ranges strand |       gene_id
-#&gt;                           &lt;Rle&gt;  &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
-#&gt;   [1] Transfer.PvP01_00_1.final     53-135      + | PVP01_0000010
-#&gt;   [2] Transfer.PvP01_00_1.final    199-415      + | PVP01_0000010
-#&gt;   [3] Transfer.PvP01_00_1.final    502-669      + | PVP01_0000010
-#&gt;   [4] Transfer.PvP01_00_1.final  7307-7992      + | PVP01_0000030
-#&gt;   [5] Transfer.PvP01_00_1.final  8049-8713      + | PVP01_0000030
-#&gt;   [6] Transfer.PvP01_00_1.final 8846-10065      + | PVP01_0000030
-#&gt;   -------
-#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+GRanges object with 3 ranges and 1 metadata column:
+                       seqnames    ranges strand |       gene_id
+                          &lt;Rle&gt; &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
+  [1] Transfer.PvP01_00_1.final    53-135      + | PVP01_0000010
+  [2] Transfer.PvP01_00_1.final   199-415      + | PVP01_0000010
+  [3] Transfer.PvP01_00_1.final   502-669      + | PVP01_0000010
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
 ```
-
 ---
 
-## Subtract exonic regions from genes
+## Get the ranges for each gene from the exons
 
 
 ```r
-genes &lt;- gff_rngs %&gt;% 
-  filter(type == "gene") %&gt;% 
-  mutate(gene_id = ID) %&gt;% 
-  select(gene_id)
+genes &lt;- all_exons %&gt;% 
+  group_by(seqnames, strand, gene_id) %&gt;% 
+  summarise(start = min(start), end = max(end)) %&gt;% 
+  as_granges()
 
-introns &lt;- genes %&gt;% 
-  bind_ranges(sub_exons) %&gt;% 
-  group_by(gene_id) %&gt;% 
-  disjoin_ranges_directed() %&gt;% 
-  filter_by_non_overlaps(all_exons)
-head(introns)
+# other, simpler way
+# genes &lt;- gff_rngs %&gt;% filter(type == "gene")
+
+genes %&gt;% 
+  head(3)
 ```
 
 ```
-#&gt; GRanges object with 6 ranges and 1 metadata column:
-#&gt;                        seqnames      ranges strand |       gene_id
-#&gt;                           &lt;Rle&gt;   &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
-#&gt;   [1] Transfer.PvP01_00_1.final     136-198      + | PVP01_0000010
-#&gt;   [2] Transfer.PvP01_00_1.final     416-501      + | PVP01_0000010
-#&gt;   [3] Transfer.PvP01_00_1.final   7993-8048      + | PVP01_0000030
-#&gt;   [4] Transfer.PvP01_00_1.final   8714-8845      + | PVP01_0000030
-#&gt;   [5] Transfer.PvP01_00_1.final 11227-11285      + | PVP01_0000040
-#&gt;   [6] Transfer.PvP01_00_1.final 11763-11806      + | PVP01_0000040
-#&gt;   -------
-#&gt;   seqinfo: 178 sequences from an unspecified genome; no seqlengths
+GRanges object with 3 ranges and 1 metadata column:
+                       seqnames     ranges strand |       gene_id
+                          &lt;Rle&gt;  &lt;IRanges&gt;  &lt;Rle&gt; |   &lt;character&gt;
+  [1] Transfer.PvP01_00_1.final     53-669      + | PVP01_0000010
+  [2] Transfer.PvP01_00_1.final  2797-3513      + | PVP01_0000020
+  [3] Transfer.PvP01_00_1.final 7307-10065      + | PVP01_0000030
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
 ```
-
 
 ---
 
-## Summary
+## Combine the genes and exon ranges, and group by gene
 
-![](hex.png)&lt;!-- --&gt;
+
+```r
+introns &lt;- genes %&gt;% 
+  bind_ranges(sub_exons) %&gt;% 
+  group_by(gene_id)
+
+introns
+```
+
+```
+GRanges object with 24584 ranges and 1 metadata column:
+Groups: gene_id [6830]
+                           seqnames      ranges strand |        gene_id
+                              &lt;Rle&gt;   &lt;IRanges&gt;  &lt;Rle&gt; |    &lt;character&gt;
+      [1] Transfer.PvP01_00_1.final      53-669      + |  PVP01_0000010
+      [2] Transfer.PvP01_00_1.final   2797-3513      + |  PVP01_0000020
+      [3] Transfer.PvP01_00_1.final  7307-10065      + |  PVP01_0000030
+      [4] Transfer.PvP01_00_1.final 10224-12567      + |  PVP01_0000040
+      [5] Transfer.PvP01_00_1.final 14215-16428      - |  PVP01_0000050
+      ...                       ...         ...    ... .            ...
+  [24580]              PvP01_MIT_v1   3066-3101      + | PVP01_MIT03100
+  [24581]              PvP01_MIT_v1   3102-3182      + | PVP01_MIT03200
+  [24582]              PvP01_MIT_v1   3267-4760      + | PVP01_MIT03300
+  [24583]              PvP01_MIT_v1   4782-5912      + | PVP01_MIT03400
+  [24584]              PvP01_MIT_v1   5914-5985      + | PVP01_MIT03500
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+---
+
+## Disjoin over each genes interval and filter
+
+
+```r
+introns &lt;- introns %&gt;% 
+  disjoin_ranges_directed() %&gt;% 
+  filter_by_non_overlaps(sub_exons)
+
+introns 
+```
+
+```
+GRanges object with 10913 ranges and 1 metadata column:
+                           seqnames          ranges strand |
+                              &lt;Rle&gt;       &lt;IRanges&gt;  &lt;Rle&gt; |
+      [1] Transfer.PvP01_00_1.final         136-198      + |
+      [2] Transfer.PvP01_00_1.final         416-501      + |
+      [3] Transfer.PvP01_00_1.final       7993-8048      + |
+      [4] Transfer.PvP01_00_1.final       8714-8845      + |
+      [5] Transfer.PvP01_00_1.final     11227-11285      + |
+      ...                       ...             ...    ... .
+  [10909]               PvP01_14_v1 3143386-3143490      - |
+  [10910]               PvP01_14_v1 3144211-3144350      - |
+  [10911]               PvP01_14_v1 3146171-3146278      - |
+  [10912]               PvP01_14_v1 3147482-3147623      - |
+  [10913]              PvP01_API_v1     15883-15884      - |
+                 gene_id
+             &lt;character&gt;
+      [1]  PVP01_0000010
+      [2]  PVP01_0000010
+      [3]  PVP01_0000030
+      [4]  PVP01_0000030
+      [5]  PVP01_0000040
+      ...            ...
+  [10909]  PVP01_1472900
+  [10910]  PVP01_1472900
+  [10911]  PVP01_1473000
+  [10912]  PVP01_1473000
+  [10913] PVP01_API04100
+  -------
+  seqinfo: 178 sequences from an unspecified genome; no seqlengths
+```
+
+---
+
+# Summary
+
+.large[
+
+- GRanges are tidy!!!
+
+- A cognitive framework for playing with GRanges
+
+- a stepping stone from tidyverse to biocverse 
+
+]
 
 ---
 
 # Acknowledgements
 
-- *Michael Lawrence*
-- *Di Cook*
+- **Michael Lawrence**
+- **Di Cook**
 - Matt Ritchie
 - Charity Law
 - Shian Su
 - Earo Wang
+
+.large[
+Development: https://github.com/sa-lee/plyranges
+
+Contributions/feedback from the Bioconductor community!
+]
     </textarea>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
 <script>var slideshow = remark.create({

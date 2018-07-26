@@ -1,31 +1,35 @@
 ---
-title: "plyranges"
-subtitle: "fluent genomic data analysis with R/Bioconductor"
+title: "<img src='hex.png' width = 250><br>fluent genomic data analysis with R/Bioconductor"
 author: "Stuart Lee"
 date: "2018-07-27"
 output:
   xaringan::moon_reader:
     lib_dir: libs
+    css: ["my.css", "libs/remark-css/default-fonts.css"]
     nature:
       highlightStyle: github
       highlightLines: true
       countIncrementalSlides: false
+
 ---
 
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
-knitr::opts_chunk$set(comment = "#>")
-library(magrittr)
+knitr::opts_chunk$set(comment = "")
 library(plyranges)
 ```
 
-## Bioconductor infrastructure is powerful...
+class: center
+# Bioconductor infrastructure is powerful...
 
-<!-- include package hex stickers -->
-
+<div style = "display:block; margin-left:auto; margin-right:auto">
+  <img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/Bioconductor_1.0/Bioconductor.png", width = 200>
+  <img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/GenomicRanges/GenomicRanges.png" width = "200">
+  <img src="https://raw.githubusercontent.com/Bioconductor/BiocStickers/master/IRanges/IRanges.png" width = "200">
+</div>
 ---
 
-## but the learning curve is steep
+# ...but the learning curve is steep!
 
 ```{r}
 pkgs_to_get_started <- c("S4Vectors", "IRanges", "GenomicRanges")
@@ -37,58 +41,69 @@ n_classes <- pkgs_to_get_started %>%
   sum()
 n_classes
 
-n_methods <- showMethods(classes = "Ranges",  printTo = FALSE) %>% 
-  grep("^Function", .) %>% 
-  length()
+n_methods <- length(methods(class = "Ranges"))
 n_methods
 ```
 
 ---
 class: inverse, center, middle
 
-# How far can we get with just a GRanges?
+# How far can a user get with just a GRanges?
 
 
 ---
 
-# GRanges are tidy...
+# GRanges are tidy!
 
 ```{r, fig.align='center', echo=FALSE}
 knitr::include_graphics("GRanges.png")
 ```
 
+---
+
+# Design a grammar
+
+
+```{r, echo = FALSE, fig.align = "center", out.width="1080"}
+
+knitr::include_graphics("design.png")
+
+```
 
 ---
 
-# ... so we can design a grammar
+# Include genomic semantics
 
-<!-- maybe a figure would be better here -->
+.large[
 
+- **arithmetic**: mutating/shifting/re-sizing/flanking
+- **restriction**: filtering by metadata or ranges
+- **aggregation**: summarizing over groups/overlaps/unions
+- **merging**: combining ranges based on overlaps/nearest neighbors
 
-- functions are verbs
-- GRanges in, GRanges out
-- leverage existing Bioconductor infrastructure 
-- enable a user to develop expressive workflows
+]
 
+See also: https://bit.ly/2v61UVs
 ---
 
 # Finding introns in a non-model organism
 
-I have a GFF file from a non-model organism 😑.
+.large[I have a GFF file from a non-model organism 😑.
 
-How can I find introns by (single) genes?
-
+How can I find introns?]
+ 
 ---
 
 ## Reading in the GFF
 
 ```{r}
+gff_rngs <- read_gff("my.gff")
 
-gff_rngs <- read_gff("PlasmoDB-38_PvivaxP01.gff")
-head(gff_rngs)
+gff_rngs %>% 
+  select(ID, type) %>% 
+  head(3)
 ```
 
-A mess!
 ---
 
 ## Retrieve exons and extract IDs
@@ -100,50 +115,78 @@ all_exons <- gff_rngs %>%
          gene_id = gsub("exon_|-[^-]+$", "", ID),
          exon_id = paste0(gene_id, ".", exon_rank)) %>% 
   select(gene_id, exon_id, exon_rank) 
-head(all_exons)
+
+all_exons %>% 
+  head(3)
 ```
 
 ---
 
-## Merge overlapping exons within a gene
+## For each gene, merge overlapping exons
 
 ```{r}
 sub_exons <- all_exons %>% 
-  group_by(gene_id) %>% 
-  reduce_ranges_directed() %>% 
-  group_by(gene_id) %>% 
-  filter(n() > 1) %>% 
-  ungroup() 
+  group_by(gene_id) %>%
+  # this will merge overlapping exons for each group
+  reduce_ranges_directed()
 
-head(sub_exons)
+sub_exons %>% 
+  head(3)
 ```
-
 ---
 
-## Subtract exonic regions from genes
+## Get the ranges for each gene from the exons
 
 ```{r}
-genes <- gff_rngs %>% 
-  filter(type == "gene") %>% 
-  mutate(gene_id = ID) %>% 
-  select(gene_id)
+genes <- all_exons %>% 
+  group_by(seqnames, strand, gene_id) %>% 
+  summarise(start = min(start), end = max(end)) %>% 
+  as_granges()
 
-introns <- genes %>% 
-  bind_ranges(sub_exons) %>% 
-  group_by(gene_id) %>% 
-  disjoin_ranges_directed() %>% 
-  filter_by_non_overlaps(all_exons)
-head(introns)
+# other, simpler way
+# genes <- gff_rngs %>% filter(type == "gene")
+
+genes %>% 
+  head(3)
 ```
-
 
 ---
 
-## Summary
+## Combine the genes and exon ranges, and group by gene
 
-```{r, echo = FALSE, fig.align='center', out.width='600'}
-knitr::include_graphics("hex.png")
+```{r}
+introns <- genes %>% 
+  bind_ranges(sub_exons) %>% 
+  group_by(gene_id)
+
+introns
 ```
+
+---
+
+## Disjoin over each genes interval and filter
+
+```{r}
+introns <- introns %>% 
+  disjoin_ranges_directed() %>% 
+  filter_by_non_overlaps(sub_exons)
+
+introns 
+```
+
+---
+
+# Summary
+
+.large[
+
+- GRanges are tidy!!!
+
+- A cognitive framework for playing with GRanges
+
+- a stepping stone from tidyverse to biocverse 
+
+]
 
 ---
 
@@ -155,3 +198,9 @@ knitr::include_graphics("hex.png")
 - Charity Law
 - Shian Su
 - Earo Wang
+
+.large[
+Development: https://github.com/sa-lee/plyranges
+
+Contributions/feedback from the Bioconductor community!
+]
