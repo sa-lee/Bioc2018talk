@@ -3,9 +3,8 @@
   <head>
     <title> fluent genomic data analysis with R/Bioconductor</title>
     <meta charset="utf-8">
-    <meta name="author" content="<i class="fab  fa-twitter "></i> _StuartLee   Monash University" />
+    <meta name="author" content="@_StuartLee   Monash University" />
     <meta name="date" content="2018-07-27" />
-    <link href="libs/font-awesome/css/fontawesome-all.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="my.css" type="text/css" />
     <link rel="stylesheet" href="libs/remark-css/default-fonts.css" type="text/css" />
   </head>
@@ -14,7 +13,7 @@
 class: center, middle, inverse, title-slide
 
 # <img src='hex.png' width = 200><br>fluent genomic data analysis with R/Bioconductor
-### <i class="fab  fa-twitter "></i> _StuartLee <br> Monash University
+### <span class="citation">@_StuartLee</span> <br> Monash University
 ### 2018-07-27
 
 ---
@@ -100,12 +99,11 @@ _Biorxiv 327841_
 ]
 
 ---
-
 # Changing coordinates
 
-.large[ The start, end, and width of a GRanges of are mutually dependent ]
-.large[ How can we express changes to width with respect to ranges?]
+.large[ The start, end, and width of a GRanges of are mutually dependent.
 
+How can we express changes to width with respect to ranges?]
 
 
 ```r
@@ -157,8 +155,39 @@ exons %&gt;%
   mutate(width = 2*width)
 ```
 
----
+```
+GRanges object with 459752 ranges and 3 metadata columns:
+           seqnames            ranges strand |
+              &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt; |
+       [1]     chr1       11697-12404      + |
+       [2]     chr1       12558-12775      + |
+       [3]     chr1       12626-15003      + |
+       [4]     chr1       14128-15063      - |
+       [5]     chr1       14935-15072      - |
+       ...      ...               ...    ... .
+  [459748]     chrY 59338701-59338912      + |
+  [459749]     chrY 59338701-59338912      + |
+  [459750]     chrY 59340151-59340320      + |
+  [459751]     chrY 59341986-59343989      + |
+  [459752]     chrY 59341986-59343989      + |
+                                         name     score       tx_id
+                                  &lt;character&gt; &lt;numeric&gt; &lt;character&gt;
+       [1]    NR_046018_exon_0_0_chr1_11874_f         0   NR_046018
+       [2]    NR_046018_exon_1_0_chr1_12613_f         0   NR_046018
+       [3]    NR_046018_exon_2_0_chr1_13221_f         0   NR_046018
+       [4]    NR_024540_exon_0_0_chr1_14362_r         0   NR_024540
+       [5]    NR_024540_exon_1_0_chr1_14970_r         0   NR_024540
+       ...                                ...       ...         ...
+  [459748] NM_002186_exon_6_0_chrY_59338754_f         0   NM_002186
+  [459749] NM_176786_exon_7_0_chrY_59338754_f         0   NM_176786
+  [459750] NM_002186_exon_7_0_chrY_59340194_f         0   NM_002186
+  [459751] NM_002186_exon_8_0_chrY_59342487_f         0   NM_002186
+  [459752] NM_176786_exon_8_0_chrY_59342487_f         0   NM_176786
+  -------
+  seqinfo: 93 sequences from an unspecified genome; no seqlengths
+```
 
+---
 ## Functions are explicit about genomic features and their intentions
 
 
@@ -174,12 +203,36 @@ exons %&gt;%
 
 ---
 
-## Composoing workflows requires endomorphism
+# Merging many GRanges
+
+.large[
+- Reimagine overlap/nearest neighbour operations as table joins
+- Carry over metadata
+- Flatten API via function calls
+]
+
+
+```r
+join_overlap_inner(a, b)
+join_overlap_inner_within(a, b)
+join_overlap_inner_directed(a, b)
+```
+
+---
+
+# Overlap Joins
+
+&lt;img src="olap.png" style="display: block; margin: auto;" /&gt;
+
+---
+
+## Composing workflows requires endomorphism
 
 
 ```r
 cvg_summary &lt;- exons %&gt;%
   compute_coverage() %&gt;% 
+  filter(score &gt; 0) %&gt;% 
   group_by(seqnames) %&gt;% 
   summarise(score = mean(score))
 
@@ -188,43 +241,20 @@ cvg_summary
 
 ```
 DataFrame with 49 rows and 2 columns
-                seqnames             score
-                   &lt;Rle&gt;         &lt;numeric&gt;
-1                   chr1  1.00581885829241
-2   chr1_gl000191_random               2.7
-3   chr1_gl000192_random               0.5
-4                  chr10  1.08338167818153
-5                  chr11  1.04531169192823
-...                  ...               ...
-45        chrUn_gl000222 0.916666666666667
-46        chrUn_gl000223  1.08695652173913
-47        chrUn_gl000228               2.3
-48                  chrX  1.18989104116223
-49                  chrY  2.46423057128152
+                seqnames            score
+                   &lt;Rle&gt;        &lt;numeric&gt;
+1                   chr1 1.94300279971585
+2   chr1_gl000191_random              4.5
+3   chr1_gl000192_random                1
+4                  chr10 2.10148337595908
+5                  chr11 2.01503067484663
+...                  ...              ...
+45        chrUn_gl000222 1.69230769230769
+46        chrUn_gl000223 1.92307692307692
+47        chrUn_gl000228 4.38095238095238
+48                  chrX 2.28463505346351
+49                  chrY 4.68952007835455
 ```
-
----
-
-# Merging many GRanges
-
-.large[
-- Reimagine overlap/nearest neighbour operations as table joins
-- Always be explicit about strand
-- Carry over metadata
-]
-
-
-```r
-join_overlap_inner(exons, snps)
-join_overlap_left(exons, snps)
-join_overlap_intersect(exons, snps)
-```
-
----
-
-# Overlap Joins
-
-&lt;img src="olap.png" style="display: block; margin: auto;" /&gt;
 
 ---
 
@@ -253,6 +283,8 @@ join_overlap_intersect(exons, snps)
 - Earo Wang
 
 Development: https://github.com/sa-lee/plyranges
+
+Docs: https://sa-lee.github.io/plyranges/
 
 Contributions/feedback welcome from the Bioconductor community!
     </textarea>

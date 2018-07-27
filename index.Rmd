@@ -1,6 +1,6 @@
 ---
 title: "<img src='hex.png' width = 200><br>fluent genomic data analysis with R/Bioconductor"
-author: "`r icon::fa_twitter()` _StuartLee <br> Monash University"
+author: "@_StuartLee <br> Monash University"
 date: "2018-07-27"
 output:
   xaringan::moon_reader:
@@ -101,14 +101,13 @@ _Biorxiv 327841_
 ]
 
 ---
-
 # Changing coordinates
 
-.large[ The start, end, and width of a GRanges of are mutually dependent ]
-.large[ How can we express changes to width with respect to ranges?]
+.large[ The start, end, and width of a GRanges of are mutually dependent.
 
+How can we express changes to width with respect to ranges?]
 
-```{r, eval - FALSE}
+```{r}
 exons %>% 
   mutate(width = 2 * width)
 ```
@@ -118,14 +117,13 @@ exons %>%
 
 An anchor decorates a GRanges and changes downstream behaviour: 
 
-```{r, eval = FALSE}
+```{r}
 exons %>% 
   anchor_center() %>% 
   mutate(width = 2*width)
 ```
 
 ---
-
 ## Functions are explicit about genomic features and their intentions
 
 ```{r, eval = FALSE}
@@ -140,31 +138,18 @@ exons %>%
 
 ---
 
-## Composoing workflows requires endomorphism
-
-```{r}
-cvg_summary <- exons %>%
-  compute_coverage() %>% 
-  group_by(seqnames) %>% 
-  summarise(score = mean(score))
-
-cvg_summary
-```
-
----
-
 # Merging many GRanges
 
 .large[
 - Reimagine overlap/nearest neighbour operations as table joins
-- Always be explicit about strand
 - Carry over metadata
+- Flatten API via function calls
 ]
 
 ```{r, eval = FALSE}
-join_overlap_inner(exons, snps)
-join_overlap_left(exons, snps)
-join_overlap_intersect(exons, snps)
+join_overlap_inner(a, b)
+join_overlap_inner_within(a, b)
+join_overlap_inner_directed(a, b)
 ```
 
 ---
@@ -173,6 +158,20 @@ join_overlap_intersect(exons, snps)
 
 ```{r, echo = FALSE, fig.align='center'}
 knitr::include_graphics("olap.png")
+```
+
+---
+
+## Composing workflows requires endomorphism
+
+```{r}
+cvg_summary <- exons %>%
+  compute_coverage() %>% 
+  filter(score > 0) %>% 
+  group_by(seqnames) %>% 
+  summarise(score = mean(score))
+
+cvg_summary
 ```
 
 ---
@@ -202,5 +201,7 @@ knitr::include_graphics("olap.png")
 - Earo Wang
 
 Development: https://github.com/sa-lee/plyranges
+
+Docs: https://sa-lee.github.io/plyranges/
 
 Contributions/feedback welcome from the Bioconductor community!
