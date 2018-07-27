@@ -61,7 +61,7 @@ n_methods
 ```
 
 ```
-[1] 210
+[1] 212
 ```
 
 .large[A lot is expected of an R beginner to **analyse** data with Bioconductor]
@@ -90,7 +90,7 @@ class: inverse, center, middle
 
 .large[
 
-- **arithmetic**: mutating/shifting/re-sizing/flanking
+- **arithmetic**: mutating/shifting/re-sizing/flanking/coverage
 - **restriction**: filtering by metadata or ranges
 - **aggregation**: summarizing over groups/overlaps/unions
 - **merging**: combining ranges based on overlaps/nearest neighbors
@@ -99,84 +99,126 @@ class: inverse, center, middle
 _Biorxiv 327841_
 ]
 
-
 ---
 
-## Grammar elements: arithimetic
+# Changing coordinates
 
 .large[ The start, end, and width of a GRanges of are mutually dependent ]
+.large[ How can we express changes to width with respect to ranges?]
+
 
 
 ```r
-gr &lt;- GRanges("chr1:10-20:+")
-
-gr %&gt;%
-  mutate(width = width + 5L)
+exons %&gt;% 
+  mutate(width = 2 * width)
 ```
 
-.large[How do we express changes to width, while fixing other coordinates?]
-
+```
+GRanges object with 459752 ranges and 3 metadata columns:
+           seqnames            ranges strand |
+              &lt;Rle&gt;         &lt;IRanges&gt;  &lt;Rle&gt; |
+       [1]     chr1       11874-12581      + |
+       [2]     chr1       12613-12830      + |
+       [3]     chr1       13221-15598      + |
+       [4]     chr1       14362-15297      - |
+       [5]     chr1       14970-15107      - |
+       ...      ...               ...    ... .
+  [459748]     chrY 59338754-59338965      + |
+  [459749]     chrY 59338754-59338965      + |
+  [459750]     chrY 59340194-59340363      + |
+  [459751]     chrY 59342487-59344490      + |
+  [459752]     chrY 59342487-59344490      + |
+                                         name     score       tx_id
+                                  &lt;character&gt; &lt;numeric&gt; &lt;character&gt;
+       [1]    NR_046018_exon_0_0_chr1_11874_f         0   NR_046018
+       [2]    NR_046018_exon_1_0_chr1_12613_f         0   NR_046018
+       [3]    NR_046018_exon_2_0_chr1_13221_f         0   NR_046018
+       [4]    NR_024540_exon_0_0_chr1_14362_r         0   NR_024540
+       [5]    NR_024540_exon_1_0_chr1_14970_r         0   NR_024540
+       ...                                ...       ...         ...
+  [459748] NM_002186_exon_6_0_chrY_59338754_f         0   NM_002186
+  [459749] NM_176786_exon_7_0_chrY_59338754_f         0   NM_176786
+  [459750] NM_002186_exon_7_0_chrY_59340194_f         0   NM_002186
+  [459751] NM_002186_exon_8_0_chrY_59342487_f         0   NM_002186
+  [459752] NM_176786_exon_8_0_chrY_59342487_f         0   NM_176786
+  -------
+  seqinfo: 93 sequences from an unspecified genome; no seqlengths
+```
 ---
 
 ## Anchoring operator
 
-An anchor decorates a GRanges and changes downstream behaviour 
-
-
-```r
-gr %&gt;% 
-  anchor_end() %&gt;% 
-  mutate(width = width + 5L)
-
-gr %&gt;% 
-  anchor_5p() %&gt;% 
-  mutate(width = width + 5L)
-```
-
----
-
-## Grammar element: restrictions
-
-.large[Similar to anchoring, grouping partitions a GRanges object and modifies any downstream behavior:]
+An anchor decorates a GRanges and changes downstream behaviour: 
 
 
 ```r
 exons %&gt;% 
-  group_by(gene_id) %&gt;% 
-  filter(n() &gt; 1)
-```
-
-.large[And include ability to restrict by overlaps:]
-
-```r
-exons %&gt;%
-  filter_by_non_overlaps(snps)
+  anchor_center() %&gt;% 
+  mutate(width = 2*width)
 ```
 
 ---
-## Grammar elements: aggregation
 
-.large[We want to summarise metadata over genomic coordinates or by groups (or both)]
+## Functions are explicit about genomic features and their intentions
 
 
 ```r
 exons %&gt;% 
-  group_by(gene_id) %&gt;% 
-  summarise(score = sum(score))
-
+  flank_downstream(2L)
 exons %&gt;% 
-  group_by(gene_id) %&gt;% 
-  # merge overlapping regions in a gene
-  reduce_ranges(score = sum(score))
+  anchor_3p() %&gt;% 
+  mutate(width = 2*width)
+exons %&gt;% 
+  shift_upstream(10L)
 ```
+
 ---
 
-## Grammar element: merging
+## Composoing workflows requires endomorphism
+
+
+```r
+cvg_summary &lt;- exons %&gt;%
+  compute_coverage() %&gt;% 
+  group_by(seqnames) %&gt;% 
+  summarise(score = mean(score))
+
+cvg_summary
+```
+
+```
+DataFrame with 49 rows and 2 columns
+                seqnames             score
+                   &lt;Rle&gt;         &lt;numeric&gt;
+1                   chr1  1.00581885829241
+2   chr1_gl000191_random               2.7
+3   chr1_gl000192_random               0.5
+4                  chr10  1.08338167818153
+5                  chr11  1.04531169192823
+...                  ...               ...
+45        chrUn_gl000222 0.916666666666667
+46        chrUn_gl000223  1.08695652173913
+47        chrUn_gl000228               2.3
+48                  chrX  1.18989104116223
+49                  chrY  2.46423057128152
+```
+
+---
+
+# Merging many GRanges
 
 .large[
 - Reimagine overlap/nearest neighbour operations as table joins
 - Always be explicit about strand
+- Carry over metadata
 ]
+
+
+```r
+join_overlap_inner(exons, snps)
+join_overlap_left(exons, snps)
+join_overlap_intersect(exons, snps)
+```
 
 ---
 

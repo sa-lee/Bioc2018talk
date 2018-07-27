@@ -17,6 +17,15 @@ output:
 options(htmltools.dir.version = FALSE)
 knitr::opts_chunk$set(comment = "")
 library(plyranges)
+dir <- system.file(package = "HelloRangesData", "extdata/")
+genome <- as_granges(read.delim(file.path(dir, "hg19.genome"), 
+                     header = FALSE),
+                     seqnames = V1, start = 1L, width = V2)
+
+gwas <- read_bed(file.path(dir, "gwas.bed"), genome_info = genome)
+exons <- read_bed(file.path(dir, "exons.bed"), genome_info = genome) %>% 
+  mutate(tx_id = sub("_exon.*", "", name))
+
 ```
 
 class: center
@@ -82,7 +91,7 @@ knitr::include_graphics("design.png")
 
 .large[
 
-- **arithmetic**: mutating/shifting/re-sizing/flanking
+- **arithmetic**: mutating/shifting/re-sizing/flanking/coverage
 - **restriction**: filtering by metadata or ranges
 - **aggregation**: summarizing over groups/overlaps/unions
 - **merging**: combining ranges based on overlaps/nearest neighbors
@@ -91,79 +100,72 @@ knitr::include_graphics("design.png")
 _Biorxiv 327841_
 ]
 
-
 ---
 
-## Grammar elements: arithimetic
+# Changing coordinates
 
 .large[ The start, end, and width of a GRanges of are mutually dependent ]
+.large[ How can we express changes to width with respect to ranges?]
 
-```{r, eval = FALSE}
-gr <- GRanges("chr1:10-20:+")
 
-gr %>%
-  mutate(width = width + 5L)
+```{r, eval - FALSE}
+exons %>% 
+  mutate(width = 2 * width)
 ```
-
-.large[How do we express changes to width, while fixing other coordinates?]
-
 ---
 
 ## Anchoring operator
 
-An anchor decorates a GRanges and changes downstream behaviour 
+An anchor decorates a GRanges and changes downstream behaviour: 
 
 ```{r, eval = FALSE}
-gr %>% 
-  anchor_end() %>% 
-  mutate(width = width + 5L)
-
-gr %>% 
-  anchor_5p() %>% 
-  mutate(width = width + 5L)
+exons %>% 
+  anchor_center() %>% 
+  mutate(width = 2*width)
 ```
 
 ---
 
-## Grammar element: restrictions
-
-.large[Similar to anchoring, grouping partitions a GRanges object and modifies any downstream behavior:]
+## Functions are explicit about genomic features and their intentions
 
 ```{r, eval = FALSE}
 exons %>% 
-  group_by(gene_id) %>% 
-  filter(n() > 1)
-```
-
-.large[And include ability to restrict by overlaps:]
-```{r, eval = FALSE}
-exons %>%
-  filter_by_non_overlaps(snps)
+  flank_downstream(2L)
+exons %>% 
+  anchor_3p() %>% 
+  mutate(width = 2*width)
+exons %>% 
+  shift_upstream(10L)
 ```
 
 ---
-## Grammar elements: aggregation
 
-.large[We want to summarise metadata over genomic coordinates or by groups (or both)]
+## Composoing workflows requires endomorphism
 
-```{r, eval = FALSE}
-exons %>% 
-  group_by(gene_id) %>% 
-  summarise(score = sum(score))
+```{r}
+cvg_summary <- exons %>%
+  compute_coverage() %>% 
+  group_by(seqnames) %>% 
+  summarise(score = mean(score))
 
-exons %>% 
-  group_by(gene_id) %>% 
-  # merge overlapping regions in a gene
-  reduce_ranges(score = sum(score))
+cvg_summary
 ```
+
 ---
 
-## Grammar element: merging
+# Merging many GRanges
 
 .large[
 - Reimagine overlap/nearest neighbour operations as table joins
 - Always be explicit about strand
+- Carry over metadata
 ]
+
+```{r, eval = FALSE}
+join_overlap_inner(exons, snps)
+join_overlap_left(exons, snps)
+join_overlap_intersect(exons, snps)
+```
 
 ---
 
