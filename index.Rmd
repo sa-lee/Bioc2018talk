@@ -205,3 +205,13 @@ Development: https://github.com/sa-lee/plyranges
 Docs: https://sa-lee.github.io/plyranges/
 
 Contributions/feedback welcome from the Bioconductor community!
+
+---
+
+# BiocAsia
+
+```{r, echo = FALSE, fig.align = 'center', out.width = '300'}
+knitr::include_graphics("BioCAsia.png")
+```
+
+.large[29-30 November in Melbourne, Australia]
